@@ -8,6 +8,7 @@ import net.minecraft.entity.EntityCreature;
 import net.minecraft.entity.ai.EntityAIMoveToBlock;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.village.Village;
 import net.minecraft.village.VillageDoorInfo;
 import net.minecraft.world.World;
 
@@ -32,8 +33,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     private List<BlockPos> doors;
     private Iterator<BlockPos> doorIterator;
 
-    public EntityAIHarvestFarmland(EntityCreature entityIn, double speedIn)
-    {
+    public EntityAIHarvestFarmland(EntityCreature entityIn, double speedIn) {
         super(entityIn, speedIn, 32);
         this.entity = entityIn;
     }
@@ -43,6 +43,11 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      */
     public boolean shouldExecute()
     {
+        Village village = this.entity.world.getVillageCollection().getNearestVillage(new BlockPos(this.entity), 128);
+        if (village == null) {
+            return false;
+        }
+
         if (this.runDelay <= 0)
         {
             if (!net.minecraftforge.event.ForgeEventFactory.getMobGriefingEvent(this.entity.world, this.entity)) {
@@ -50,11 +55,14 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             }
 
             this.currentTask = Task.TO_FARM;
+            creature.setCustomNameTag("TO_FARM");
+            creature.setAlwaysRenderNameTag(true);
+            creature.setCanPickUpLoot(true);
 
         }
 
         if (doors == null) {
-            this.doors = this.entity.world.getVillageCollection().getNearestVillage(new BlockPos(this.entity), 128).getVillageDoorInfoList()
+            this.doors = village.getVillageDoorInfoList()
                     .stream().map(VillageDoorInfo::getDoorBlockPos).collect(Collectors.toList());
             this.doorIterator = doors.iterator();
         }
@@ -77,39 +85,51 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
         super.updateTask();
         this.entity.getLookHelper().setLookPosition((double)this.destinationBlock.getX() + 0.5D, (double)(this.destinationBlock.getY() + 1), (double)this.destinationBlock.getZ() + 0.5D, 10.0F, (float)this.entity.getVerticalFaceSpeed());
 
-        if (this.getIsAboveDestination()) {
-
+        if (this.creature.getDistanceSqToCenter(this.destinationBlock) < 1.0) {
+            System.out.println("In action area");
             if (this.currentTask.ordinal() <= 2) {
                 World world = this.entity.world;
                 BlockPos blockpos = this.destinationBlock.up();
                 IBlockState iblockstate = world.getBlockState(blockpos);
                 Block block = iblockstate.getBlock();
 
+                this.runDelay = 10;
+
                 if (this.currentTask == Task.HARVEST && block instanceof BlockCrops && ((BlockCrops) block).isMaxAge(iblockstate)) {
                     world.destroyBlock(blockpos, true);
+                    this.searchForDestination();
+                    return;
                 } else if (this.currentTask == Task.THROW) {
                     if (entity.getHeldItemMainhand().isEmpty()) {
                         this.currentTask = Task.TO_FARM;
+                        creature.setCustomNameTag("TO_FARM");
                         return;
                     }
                     entity.dropItem(entity.getHeldItemMainhand().getItem(), 1);
                     entity.getHeldItemMainhand().shrink(1);
                     this.currentTask = Task.TO_DOOR;
+                    creature.setCustomNameTag("TO_DOOR");
                     return;
                 }
 
                 if (this.currentTask == Task.HARVEST) {
                     this.currentTask = Task.TO_DOOR;
+                    creature.setCustomNameTag("TO_DOOR");
                 } else {
                     this.currentTask = Task.TO_FARM;
+                    creature.setCustomNameTag("TO_FARM");
                 }
             }
 
             if (this.currentTask == Task.TO_DOOR) {
                 this.currentTask = Task.THROW;
+                creature.setCustomNameTag("THROW");
             }
 
-            this.runDelay = 10;
+            if (this.currentTask == Task.TO_FARM) {
+                this.currentTask = Task.HARVEST;
+                creature.setCustomNameTag("HARVEST");
+            }
         }
     }
 
