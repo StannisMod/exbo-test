@@ -1,6 +1,5 @@
 package ru.quarter.zc;
 
-import net.minecraft.entity.ai.EntityAIMoveIndoors;
 import net.minecraft.entity.ai.EntityAINearestAttackableTarget;
 import net.minecraft.entity.ai.EntityAIOpenDoor;
 import net.minecraft.entity.ai.EntityAIZombieAttack;
@@ -8,22 +7,15 @@ import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.monster.EntityZombie;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
-import net.minecraft.world.World;
 import ru.quarter.zc.repack.gloomyfolken.hooklib.asm.Hook;
 import ru.quarter.zc.repack.gloomyfolken.hooklib.asm.ReturnCondition;
 
 public class Hooks {
 
-    @Hook(targetMethod = "<init>", injectOnExit = true)
-    public static void EntityZombie(EntityZombie instance, World worldIn) {
-        instance.setCanPickUpLoot(true);
-    }
-
     @Hook(injectOnExit = true)
     public static void initEntityAI(EntityZombie instance) {
         instance.tasks.taskEntries.removeIf(task -> task.action instanceof EntityAIZombieAttack);
         instance.targetTasks.taskEntries.removeIf(task -> task.action instanceof EntityAINearestAttackableTarget);
-        instance.tasks.addTask(4, new EntityAIMoveIndoors(instance));
         instance.tasks.addTask(3, new EntityAIOpenDoor(instance, false));
         instance.tasks.addTask(2, new EntityAIHarvestFarmland(instance, 1.0F));
         instance.setCanPickUpLoot(true);
