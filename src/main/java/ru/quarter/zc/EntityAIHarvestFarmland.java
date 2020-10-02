@@ -11,6 +11,7 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.pathfinding.PathNavigateGround;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.village.Village;
 import net.minecraft.village.VillageDoorInfo;
 import net.minecraft.world.World;
@@ -28,14 +29,12 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
         TO_DOOR
     }
 
-    private final EntityCreature entity;
     private Task currentTask = Task.TO_FARM;
     private List<BlockPos> doors;
     private Iterator<BlockPos> doorIterator;
 
     public EntityAIHarvestFarmland(EntityCreature entityIn, double speedIn) {
         super(entityIn, speedIn, 32);
-        this.entity = entityIn;
     }
 
     /**
@@ -43,14 +42,14 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      */
     public boolean shouldExecute()
     {
-        Village village = this.entity.world.getVillageCollection().getNearestVillage(new BlockPos(this.entity), 128);
+        Village village = this.creature.world.getVillageCollection().getNearestVillage(new BlockPos(this.creature), 32);
         if (village == null) {
             return false;
         }
 
         if (this.runDelay <= 0)
         {
-            if (!net.minecraftforge.event.ForgeEventFactory.getMobGriefingEvent(this.entity.world, this.entity)) {
+            if (!net.minecraftforge.event.ForgeEventFactory.getMobGriefingEvent(this.creature.world, this.creature)) {
                 return false;
             }
 
@@ -106,7 +105,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     public void updateTask() {
         if (!creature.world.isRemote) {
             super.updateTask();
-            this.entity.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.entity.getVerticalFaceSpeed());
+            this.creature.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.creature.getVerticalFaceSpeed());
 
             if (this.currentTask == Task.TO_DOOR) {
                 System.out.println(destinationBlock.getDistance((int) creature.posX, (int) creature.posY, (int) creature.posZ));
@@ -116,14 +115,30 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
                 System.out.println("2");
                 //((BlockDoor) creature.world.getBlockState(destinationBlock.up()).getBlock()).toggleDoor(creature.world, destinationBlock.up(), true);
 
-                if (entity.getHeldItemMainhand().isEmpty()) {
+                if (creature.getHeldItemMainhand().isEmpty()) {
                     this.setCurrentTask(Task.TO_FARM);
                     return;
                 }
                 // TODO Fix throwing...
-                entity.world.spawnEntity(new EntityItem(entity.world, entity.posX, entity.posY, entity.posZ, new ItemStack(entity.getHeldItemMainhand().getItem())));
-                //entity.entityDropItem(new ItemStack(entity.getHeldItemMainhand().getItem()), 0.5F);
-                entity.getHeldItemMainhand().shrink(1);
+
+                System.out.println("Throwing...");
+                double d0 = creature.posY - 0.30000001192092896D + (double)creature.getEyeHeight();
+                EntityItem entityitem = new EntityItem(creature.world, creature.posX, d0, creature.posZ, new ItemStack(creature.getHeldItemMainhand().getItem()));
+                entityitem.setPickupDelay(200);
+                float f2 = 0.3F;
+                entityitem.motionX = (double)(-MathHelper.sin(creature.rotationYaw * 0.017453292F) * MathHelper.cos(creature.rotationPitch * 0.017453292F) * f2);
+                entityitem.motionZ = (double)(MathHelper.cos(creature.rotationYaw * 0.017453292F) * MathHelper.cos(creature.rotationPitch * 0.017453292F) * f2);
+                entityitem.motionY = (double)(-MathHelper.sin(creature.rotationPitch * 0.017453292F) * f2 + 0.1F);
+                float f3 = creature.getRNG().nextFloat() * ((float)Math.PI * 2F);
+                f2 = 0.02F * creature.getRNG().nextFloat();
+                entityitem.motionX += Math.cos((double)f3) * (double)f2;
+                entityitem.motionY += (double)((creature.getRNG().nextFloat() - creature.getRNG().nextFloat()) * 0.1F);
+                entityitem.motionZ += Math.sin((double)f3) * (double)f2;
+
+                creature.world.spawnEntity(entityitem);
+                //entity.entityDropItem(new ItemStack(entity.getHeldItemMainhand().getItem()), 1.0F);
+                creature.getHeldItemMainhand().shrink(1);
+                System.out.println("Thrown!");
 
                 nextDoor();
             }
@@ -131,7 +146,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             if (this.getIsAboveDestination()) {
                 System.out.println("In action area");
                 if (this.currentTask == Task.HARVEST) {
-                    World world = this.entity.world;
+                    World world = this.creature.world;
                     BlockPos up = this.destinationBlock.up();
                     IBlockState iblockstate = world.getBlockState(up);
                     Block block = iblockstate.getBlock();
