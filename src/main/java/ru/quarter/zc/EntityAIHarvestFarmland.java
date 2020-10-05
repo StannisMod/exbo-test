@@ -41,15 +41,13 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     /**
      * Returns whether the EntityAIBase should begin execution.
      */
-    public boolean shouldExecute()
-    {
+    public boolean shouldExecute() {
         Village village = this.creature.world.getVillageCollection().getNearestVillage(new BlockPos(this.creature), 32);
         if (village == null) {
             return false;
         }
 
-        if (this.runDelay <= 0)
-        {
+        if (this.runDelay <= 0) {
             if (!net.minecraftforge.event.ForgeEventFactory.getMobGriefingEvent(this.creature.world, this.creature)) {
                 return false;
             }
@@ -59,7 +57,6 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             creature.setCanPickUpLoot(true);
             ((PathNavigateGround) creature.getNavigator()).setEnterDoors(true);
             //((PathNavigateGround) creature.getNavigator()).setBreakDoors(true);
-
         }
 
         if (doors == null) {
@@ -81,9 +78,9 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
         {
             this.runDelay = 20 + this.creature.getRNG().nextInt(20);
             boolean found = this.searchForDestination();
-            if (found) {
+            /*if (found) {
                 System.out.println("Found target | State: " + currentTask.name() + " | Pos: " + destinationBlock.toString() + " | Target: " + creature.world.getBlockState(destinationBlock).getBlock().toString() + " | Up: " + creature.world.getBlockState(destinationBlock.up()).getBlock().toString());
-            }
+            }*/
             if (!shouldContinueExecuting()) {
                 return false;
             }
@@ -95,8 +92,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      * Returns whether an in-progress EntityAIBase should continue executing
      */
     @Override
-    public boolean shouldContinueExecuting()
-    {
+    public boolean shouldContinueExecuting() {
         return this.shouldMoveTo(this.creature.world, this.destinationBlock);
     }
 
@@ -114,7 +110,6 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
 
     private void setTarget(BlockPos pos) {
         destinationBlock = pos;
-        //creature.getNavigator().tryMoveToXYZ(pos.getX(), pos.getY(), pos.getZ(), movementSpeed);
     }
 
     private double getDistanceToDestination() {
@@ -126,8 +121,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      */
     public void updateTask() {
 
-            if (this.creature.getDistanceSqToCenter(this.destinationBlock.up()) > 1.0D)
-            {
+            if (this.creature.getDistanceSqToCenter(this.destinationBlock.up()) > 1.0D) {
                 this.isAboveDestination = false;
 
                 if (creature.getNavigator().noPath()) {
@@ -135,17 +129,14 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
                     this.creature.getNavigator().tryMoveToXYZ((double)((float)this.destinationBlock.getX()) + 0.5D, (double)(this.destinationBlock.getY() + 1), (double)((float)this.destinationBlock.getZ()) + 0.5D, this.movementSpeed);
                 }
             }
-            else
-            {
+            else {
                 this.isAboveDestination = true;
             }
-
-            //super.updateTask();
 
             this.creature.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.creature.getVerticalFaceSpeed());
 
             if (getDistanceToDestination() < 1.2F && this.currentTask == Task.TO_DOOR) {
-                //System.out.println("2");
+                //System.out.println("Throwing...");
 
                 throwSingleItem();
 
@@ -247,13 +238,15 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             }
             this.setCurrentTask(Task.TO_DOOR);
             nextDoor();
-        }
-
-        if (this.currentTask == Task.TO_DOOR/* || this.currentTask == Task.TO_FARM*/) {
-            //nextDoor();
             return true;
         }
 
+        // If occasionally move to this, just skip
+        if (this.currentTask == Task.TO_DOOR) {
+            return true;
+        }
+
+        // Searching for WHAT??? (of course, for nearest farmlands)
         // Direct copy from EntityAIMoveToBlock
         for (int k = 0; k <= 1; k = k > 0 ? -k : 1 - k) {
             for (int l = 0; l < this.searchLength; ++l) {
