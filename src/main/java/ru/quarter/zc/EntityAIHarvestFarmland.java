@@ -1,8 +1,8 @@
 package ru.quarter.zc;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockAir;
 import net.minecraft.block.BlockCrops;
-import net.minecraft.block.BlockDoor;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.EntityCreature;
 import net.minecraft.entity.ai.EntityAIMoveToBlock;
@@ -13,6 +13,7 @@ import net.minecraft.pathfinding.PathNavigateGround;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.village.Village;
+import net.minecraft.village.VillageDoorInfo;
 import net.minecraft.world.World;
 
 import javax.annotation.Nonnull;
@@ -24,6 +25,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
 
     enum Task {
         HARVEST,
+        NEXT_FARM,
         TO_FARM,
         TO_DOOR
     }
@@ -31,7 +33,6 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     private Task currentTask = Task.TO_FARM;
     private List<BlockPos> doors;
     private Iterator<BlockPos> doorIterator;
-    private int searchDelay;
 
     public EntityAIHarvestFarmland(EntityCreature entityIn, double speedIn) {
         super(entityIn, speedIn, 32);
@@ -57,14 +58,14 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             creature.setAlwaysRenderNameTag(true);
             creature.setCanPickUpLoot(true);
             ((PathNavigateGround) creature.getNavigator()).setEnterDoors(true);
-            ((PathNavigateGround) creature.getNavigator()).setBreakDoors(true);
+            //((PathNavigateGround) creature.getNavigator()).setBreakDoors(true);
 
         }
 
         if (doors == null) {
             this.doors = village.getVillageDoorInfoList()
                     .stream()
-                    .map(door -> door.getDoorBlockPos().offset(door.getInsideDirection()))
+                    .map(VillageDoorInfo::getInsideBlockPos)
                     .collect(Collectors.toList());
             this.doorIterator = doors.iterator();
         }
@@ -79,7 +80,14 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
         else
         {
             this.runDelay = 20 + this.creature.getRNG().nextInt(20);
-            return this.searchForDestination();
+            boolean found = this.searchForDestination();
+            if (found) {
+                System.out.println("Found target | State: " + currentTask.name() + " | Pos: " + destinationBlock.toString() + " | Target: " + creature.world.getBlockState(destinationBlock).getBlock().toString() + " | Up: " + creature.world.getBlockState(destinationBlock.up()).getBlock().toString());
+            }
+            if (!shouldContinueExecuting()) {
+                return false;
+            }
+            return found;
         }
     }
 
@@ -117,14 +125,13 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      * Keep ticking a continuous task that has already been started
      */
     public void updateTask() {
-        if (!creature.world.isRemote) {
 
             if (this.creature.getDistanceSqToCenter(this.destinationBlock.up()) > 1.0D)
             {
                 this.isAboveDestination = false;
 
                 if (creature.getNavigator().noPath()) {
-                    System.out.println("Trying to move...");
+                    System.out.println("Trying to move... | State: " + currentTask.name() + " | Pos: " + destinationBlock.toString() + " | Target: " + creature.world.getBlockState(destinationBlock).getBlock().toString() + " | Up: " + creature.world.getBlockState(destinationBlock.up()).getBlock().toString());
                     this.creature.getNavigator().tryMoveToXYZ((double)((float)this.destinationBlock.getX()) + 0.5D, (double)(this.destinationBlock.getY() + 1), (double)((float)this.destinationBlock.getZ()) + 0.5D, this.movementSpeed);
                 }
             }
@@ -137,16 +144,8 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
 
             this.creature.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.creature.getVerticalFaceSpeed());
 
-            /*if (this.currentTask == Task.TO_DOOR && creature.getNavigator().noPath()) {
-                System.out.println(getDistanceToDestination());
-                creature.getNavigator().tryMoveToXYZ(destinationBlock.getX(), destinationBlock.getY(), destinationBlock.getZ(), movementSpeed);
-                creature.getMoveHelper().setMoveTo(destinationBlock.getX(), destinationBlock.getY(), destinationBlock.getZ(), movementSpeed);
-                System.out.println(creature.getNavigator().getNodeProcessor().getCanEnterDoors() + " " + creature.getNavigator().getNodeProcessor().getCanOpenDoors() + " " + searchDelay);
-            }*/
-
-            if (getDistanceToDestination() < 2.0F && this.currentTask == Task.TO_DOOR) {
-                System.out.println("2");
-                //((BlockDoor) creature.world.getBlockState(destinationBlock.up()).getBlock()).toggleDoor(creature.world, destinationBlock.up(), true);
+            if (getDistanceToDestination() < 1.2F && this.currentTask == Task.TO_DOOR) {
+                //System.out.println("2");
 
                 throwSingleItem();
 
@@ -159,7 +158,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             }
 
             if (this.getIsAboveDestination()) {
-                System.out.println("In action area");
+                //System.out.println("In action area");
                 if (this.currentTask == Task.HARVEST) {
                     World world = this.creature.world;
                     BlockPos up = this.destinationBlock.up();
@@ -168,20 +167,17 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
 
                     if (block instanceof BlockCrops && ((BlockCrops) block).isMaxAge(iblockstate)) {
                         world.destroyBlock(up, true);
+                        setCurrentTask(Task.NEXT_FARM);
                         if (searchForDestination()) {
                             return;
                         }
                     }
-
-                    //this.setCurrentTask(Task.TO_DOOR);
-                    //nextDoor();
                 }
 
                 if (this.currentTask == Task.TO_FARM) {
                     this.setCurrentTask(Task.HARVEST);
                 }
             }
-        }
     }
 
     private void throwSingleItem() {
@@ -215,7 +211,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     protected boolean shouldMoveTo(World worldIn, @Nonnull BlockPos pos) {
         Block block = worldIn.getBlockState(pos).getBlock();
 
-        if (block instanceof BlockDoor) {
+        if (block instanceof BlockAir) {
             return this.currentTask == Task.TO_DOOR;
         }
 
@@ -225,7 +221,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             block = iblockstate.getBlock();
 
             return block instanceof BlockCrops && ((BlockCrops) block).isMaxAge(iblockstate)
-                    && (this.currentTask == Task.TO_FARM || this.currentTask == Task.HARVEST);
+                    && (this.currentTask == Task.TO_FARM || this.currentTask == Task.HARVEST || this.currentTask == Task.NEXT_FARM);
         }
 
         return false;
@@ -235,15 +231,16 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     public boolean searchForDestination() {
         BlockPos blockpos = new BlockPos(this.creature);
 
-        if (this.currentTask == Task.HARVEST) {
+        if (this.currentTask == Task.NEXT_FARM) {
             for (int i = -1; i < 2; i++) {
                 for (int j = -1; j < 2; j++) {
                     if (i == 0 && j == 0) {
                         continue;
                     }
-                    BlockPos blockpos1 = blockpos.add(i, 0, j);
+                    BlockPos blockpos1 = destinationBlock.add(i, 0, j);
                     if (this.creature.isWithinHomeDistanceFromPosition(blockpos1) && this.shouldMoveTo(this.creature.world, blockpos1)) {
                         setTarget(blockpos1);
+                        setCurrentTask(Task.HARVEST);
                         return true;
                     }
                 }
@@ -252,7 +249,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             nextDoor();
         }
 
-        if (this.currentTask == Task.TO_DOOR || this.currentTask == Task.TO_FARM) {
+        if (this.currentTask == Task.TO_DOOR/* || this.currentTask == Task.TO_FARM*/) {
             //nextDoor();
             return true;
         }

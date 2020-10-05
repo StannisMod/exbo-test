@@ -1,5 +1,6 @@
 package ru.quarter.zc;
 
+import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.ai.EntityAINearestAttackableTarget;
 import net.minecraft.entity.ai.EntityAIOpenDoor;
 import net.minecraft.entity.ai.EntityAIZombieAttack;
@@ -19,6 +20,11 @@ public class Hooks {
         instance.tasks.addTask(3, new EntityAIOpenDoor(instance, false));
         instance.tasks.addTask(2, new EntityAIHarvestFarmland(instance, 1.0F));
         instance.setCanPickUpLoot(true);
+    }
+
+    @Hook(injectOnExit = true)
+    public static void applyEntityAttributes(EntityZombie instance) {
+        instance.getEntityAttribute(SharedMonsterAttributes.FOLLOW_RANGE).setBaseValue(200.0D);
     }
 
     @Hook(returnCondition = ReturnCondition.ALWAYS)
