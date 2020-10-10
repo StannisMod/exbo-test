@@ -33,9 +33,7 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
     private Task currentTask;
     private List<BlockPos> doors;
     private Iterator<BlockPos> doorIterator;
-    private Iterator<BlockPos> farmland;//new TreeSet<>(POS_EQUALS_COMPARATOR);
-
-    //public static final Comparator<BlockPos> POS_EQUALS_COMPARATOR = (o1, o2) -> o1.distanceSq(o2) == 0 ? 0 : 1;
+    private Iterator<BlockPos> farmland;
 
     public EntityAIHarvestFarmland(EntityCreature entityIn, double speedIn) {
         super(entityIn, speedIn, 32);
@@ -71,8 +69,6 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
             this.doorIterator = doors.iterator();
         }
 
-        //creature.setCustomNameTag(this.currentTask.name() + "[" + runDelay + "]");
-
         if (this.runDelay > 0)
         {
             --this.runDelay;
@@ -82,9 +78,6 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
         {
             this.runDelay = 20 + this.creature.getRNG().nextInt(20);
             boolean found = this.searchForDestination();
-            /*if (found) {
-                System.out.println("Found target | State: " + currentTask.name() + " | Pos: " + destinationBlock.toString() + " | Target: " + creature.world.getBlockState(destinationBlock).getBlock().toString() + " | Up: " + creature.world.getBlockState(destinationBlock.up()).getBlock().toString());
-            }*/
             if (!shouldContinueExecuting()) {
                 return false;
             }
@@ -125,85 +118,75 @@ public class EntityAIHarvestFarmland extends EntityAIMoveToBlock {
      */
     public void updateTask() {
 
-            if (this.creature.getDistanceSqToCenter(this.destinationBlock.up()) > 1.0D) {
-                this.isAboveDestination = false;
+        if (this.creature.getDistanceSqToCenter(this.destinationBlock.up()) > 1.0D) {
+            this.isAboveDestination = false;
 
-                if (creature.getNavigator().noPath()) {
-                    System.out.println("Trying to move... | State: " + currentTask.name() + " | Pos: " + destinationBlock.toString() + " | Target: " + creature.world.getBlockState(destinationBlock).getBlock().toString() + " | Up: " + creature.world.getBlockState(destinationBlock.up()).getBlock().toString());
-                    this.creature.getNavigator().tryMoveToXYZ((double)((float)this.destinationBlock.getX()) + 0.5D, (double)(this.destinationBlock.getY() + 1), (double)((float)this.destinationBlock.getZ()) + 0.5D, this.movementSpeed);
-                }
+            if (creature.getNavigator().noPath()) {
+                this.creature.getNavigator().tryMoveToXYZ((double)((float)this.destinationBlock.getX()) + 0.5D, (double)(this.destinationBlock.getY() + 1), (double)((float)this.destinationBlock.getZ()) + 0.5D, this.movementSpeed);
             }
-            else {
-                this.isAboveDestination = true;
-            }
+        }
+        else {
+            this.isAboveDestination = true;
+        }
 
-            this.creature.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.creature.getVerticalFaceSpeed());
+        this.creature.getLookHelper().setLookPosition((double) this.destinationBlock.getX() + 0.5D, (double) (this.destinationBlock.getY() + 1), (double) this.destinationBlock.getZ() + 0.5D, 10.0F, (float) this.creature.getVerticalFaceSpeed());
 
-            if (getDistanceToDestination() < 1.2F && this.currentTask == Task.TO_DOOR) {
-                System.out.println("Throwing...");
+        if (getDistanceToDestination() < 1.2F && this.currentTask == Task.TO_DOOR) {
+            throwSingleItem();
 
-                throwSingleItem();
-
-                if (InventoryUtil.isEmpty(CapabilityInventory.get(creature))) {
-                    this.setCurrentTask(Task.TO_FARM);
-                    return;
-                }
-
-                nextDoor();
+            if (InventoryUtil.isEmpty(CapabilityInventory.get(creature))) {
+                this.setCurrentTask(Task.TO_FARM);
+                return;
             }
 
-            if (this.getIsAboveDestination()) {
-                //System.out.println("In action area");
-                if (this.currentTask == Task.HARVEST) {
-                    World world = this.creature.world;
-                    BlockPos up = this.destinationBlock.up();
-                    IBlockState iblockstate = world.getBlockState(up);
-                    Block block = iblockstate.getBlock();
+            nextDoor();
+        }
 
-                    if (block instanceof BlockCrops && ((BlockCrops) block).isMaxAge(iblockstate)) {
-                        world.destroyBlock(up, true);
-                        if (searchForDestination()) {
-                            return;
-                        }
+        if (this.getIsAboveDestination()) {
+            if (this.currentTask == Task.HARVEST) {
+                World world = this.creature.world;
+                BlockPos up = this.destinationBlock.up();
+                IBlockState iblockstate = world.getBlockState(up);
+                Block block = iblockstate.getBlock();
+
+                if (block instanceof BlockCrops && ((BlockCrops) block).isMaxAge(iblockstate)) {
+                    world.destroyBlock(up, true);
+                    if (searchForDestination()) {
+                        return;
                     }
                 }
+            }
 
-                if (this.currentTask == Task.TO_FARM) {
-                    // Scanning for the whole farmland
-                    Queue<BlockPos> queue = new ArrayDeque<>();
-                    Set<BlockPos> visited = new HashSet<>();//new TreeSet<>(POS_EQUALS_COMPARATOR);
-                    Set<BlockPos> result = new HashSet<>();
-                    queue.add(destinationBlock);
-                    System.out.println("=================== Started seeking ===================");
-                    System.out.println(destinationBlock.toString());
-                    while (!queue.isEmpty()) {
-                        BlockPos target = queue.poll();
-                        if (this.shouldMoveTo(this.creature.world, target)) {
-                            result.add(target);
-                            System.out.println("Added to farmland: " + target.toString());
-                        }
-                        for (int i = -1; i < 2; i++) {
-                            for (int j = -1; j < 2; j++) {
-                                if (i == 0 && j == 0) {
-                                    continue;
-                                }
-                                BlockPos blockpos1 = target.add(i, 0, j);
-                                if (this.creature.isWithinHomeDistanceFromPosition(blockpos1) && creature.world.getBlockState(blockpos1).getBlock() instanceof BlockFarmland) {//this.shouldMoveTo(this.creature.world, blockpos1)) {
-                                    if (!visited.contains(blockpos1)) {
-                                        queue.add(blockpos1);
-                                        visited.add(blockpos1);
-                                        System.out.println("Added to queue: " + blockpos1.toString());
-                                    }
+            if (this.currentTask == Task.TO_FARM) {
+                // Scanning for the whole farmland
+                Queue<BlockPos> queue = new ArrayDeque<>();
+                Set<BlockPos> visited = new HashSet<>();
+                Set<BlockPos> result = new HashSet<>();
+                queue.add(destinationBlock);
+                while (!queue.isEmpty()) {
+                    BlockPos target = queue.poll();
+                    if (this.shouldMoveTo(this.creature.world, target)) {
+                        result.add(target);
+                    }
+                    for (int i = -1; i < 2; i++) {
+                        for (int j = -1; j < 2; j++) {
+                            if (i == 0 && j == 0) {
+                                continue;
+                            }
+                            BlockPos blockpos1 = target.add(i, 0, j);
+                            if (this.creature.isWithinHomeDistanceFromPosition(blockpos1) && creature.world.getBlockState(blockpos1).getBlock() instanceof BlockFarmland) {
+                                if (!visited.contains(blockpos1)) {
+                                    queue.add(blockpos1);
+                                    visited.add(blockpos1);
                                 }
                             }
                         }
                     }
-                    farmland = result.iterator();
-                    System.out.println("Found: " + result.size() + " farmland blocks");
-                    System.out.println("==================== Ended seeking ====================");
-                    this.setCurrentTask(Task.HARVEST);
                 }
+                farmland = result.iterator();
+               this.setCurrentTask(Task.HARVEST);
             }
+        }
     }
 
     private void throwSingleItem() {
